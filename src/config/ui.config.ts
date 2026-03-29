@@ -47,4 +47,14 @@ export const UI_CONFIG = {
   csvExport: {
     columns: ["Code", "Name", "Price", "Category", "Available", "Featured", "Stock Count", "Colors", "Description"],
   },
+
+  productDetail: {
+    desktopMaxWidth: "max-w-5xl",
+    imageMaxHeightDesktop: "max-h-[70vh]",
+  },
+
+  upload: {
+    galleryButtonLabel: "chooseFromGallery",
+    cameraButtonLabel: "takePhoto",
+  },
 } as const;

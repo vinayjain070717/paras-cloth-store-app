@@ -14,6 +14,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (!file) throw validationError("No file provided");
 
+  const allowedTypes = VALIDATION_CONFIG.upload.allowedTypes as readonly string[];
+  if (!allowedTypes.includes(file.type)) {
+    throw validationError(
+      `Invalid file type "${file.type}". Allowed: JPG, PNG, WebP, GIF`
+    );
+  }
+
   if (file.size > VALIDATION_CONFIG.upload.maxFileSizeBytes) {
     throw validationError(
       `File too large. Maximum size is ${VALIDATION_CONFIG.upload.maxFileSizeMb}MB`
@@ -33,11 +40,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     { method: "POST", body: cloudFormData }
   );
 
-  if (!res.ok) {
-    throw new Error("Cloudinary upload failed");
-  }
-
   const data = await res.json();
+
+  if (!res.ok) {
+    const errMsg = data?.error?.message || "Cloudinary upload failed";
+    throw new Error(errMsg);
+  }
 
   return NextResponse.json({
     url: data.secure_url,

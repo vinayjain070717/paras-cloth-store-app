@@ -135,6 +135,12 @@ export const translations = {
     offline: "You are offline",
     somethingWentWrong: "Something went wrong",
     tryAgain: "Try Again",
+    selectAll: "Select All",
+    deselectAll: "Deselect All",
+    deleteSelected: "Delete Selected",
+    confirmBulkDelete: "Delete {count} product(s)?",
+    maxImagesReached: "Maximum photos reached",
+    uploadFailed: "Upload failed",
   },
   hi: {
     shopName: "पारस क्लॉथ स्टोर ऑनलाइन",
@@ -270,6 +276,12 @@ export const translations = {
     offline: "आप ऑफ़लाइन हैं",
     somethingWentWrong: "कुछ गलत हो गया",
     tryAgain: "फिर से कोशिश करें",
+    selectAll: "सभी चुनें",
+    deselectAll: "सभी हटाएं",
+    deleteSelected: "चुने हुए हटाएं",
+    confirmBulkDelete: "{count} उत्पाद हटाएं?",
+    maxImagesReached: "अधिकतम फोटो सीमा",
+    uploadFailed: "अपलोड विफल",
   },
 } as const;
 

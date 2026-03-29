@@ -52,7 +52,9 @@ function AdminProductsPage() {
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<{ name: string; status: "pending" | "uploading" | "done" | "error" }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
     const [prods, cats] = await Promise.all([
@@ -114,25 +116,57 @@ function AdminProductsPage() {
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    setUploading(true);
+    if (!files || files.length === 0) return;
 
-    for (const file of Array.from(files)) {
-      if (file.size > VALIDATION_CONFIG.upload.maxFileSizeBytes) {
-        setFormErrors((prev) => ({ ...prev, images: `File ${file.name} is too large (max ${VALIDATION_CONFIG.upload.maxFileSizeMb}MB)` }));
+    const remaining = VALIDATION_CONFIG.product.maxImages - form.images.length;
+    if (remaining <= 0) {
+      setFormErrors((prev) => ({ ...prev, images: t("maxImagesReached" as TranslationKey) }));
+      e.target.value = "";
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const allowedTypes = VALIDATION_CONFIG.upload.allowedTypes as readonly string[];
+
+    for (const file of Array.from(files).slice(0, remaining)) {
+      if (!allowedTypes.includes(file.type)) {
+        setFormErrors((prev) => ({ ...prev, images: `${file.name}: Invalid file type. Use JPG, PNG, or WebP.` }));
         continue;
       }
+      if (file.size > VALIDATION_CONFIG.upload.maxFileSizeBytes) {
+        setFormErrors((prev) => ({ ...prev, images: `${file.name}: Too large (max ${VALIDATION_CONFIG.upload.maxFileSizeMb}MB)` }));
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) { e.target.value = ""; return; }
+
+    setUploading(true);
+    setUploadQueue(validFiles.map((f) => ({ name: f.name, status: "pending" })));
+
+    for (let i = 0; i < validFiles.length; i++) {
+      setUploadQueue((prev) => prev.map((q, idx) => idx === i ? { ...q, status: "uploading" } : q));
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", validFiles[i]);
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const data = await res.json();
-        if (data.url) {
+        if (res.ok && data.url) {
           setForm((prev) => ({ ...prev, images: [...prev.images, data.url] }));
+          setUploadQueue((prev) => prev.map((q, idx) => idx === i ? { ...q, status: "done" } : q));
+        } else {
+          setUploadQueue((prev) => prev.map((q, idx) => idx === i ? { ...q, status: "error" } : q));
+          setFormErrors((prev) => ({ ...prev, images: data.error || `Failed to upload ${validFiles[i].name}` }));
         }
-      } catch { /* upload failed */ }
+      } catch {
+        setUploadQueue((prev) => prev.map((q, idx) => idx === i ? { ...q, status: "error" } : q));
+        setFormErrors((prev) => ({ ...prev, images: `Network error uploading ${validFiles[i].name}` }));
+      }
     }
     setUploading(false);
+    setTimeout(() => setUploadQueue([]), 2000);
+    e.target.value = "";
   };
 
   const removeImage = (index: number) => {
@@ -230,6 +264,7 @@ function AdminProductsPage() {
   };
 
   const handleBulkSold = async () => {
+    setBulkDeleting(true);
     for (const id of selectedIds) {
       await fetch("/api/products", {
         method: "PUT",
@@ -238,7 +273,27 @@ function AdminProductsPage() {
       });
     }
     setSelectedIds(new Set());
+    setBulkDeleting(false);
     loadData();
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedIds.size} product(s)? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    for (const id of selectedIds) {
+      await fetch(`/api/products?id=${id}`, { method: "DELETE" });
+    }
+    setSelectedIds(new Set());
+    setBulkDeleting(false);
+    loadData();
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filtered.length && filtered.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((p) => p.id)));
+    }
   };
 
   const handleShare = () => {
@@ -414,9 +469,12 @@ function AdminProductsPage() {
 
         {/* Bulk Actions */}
         {selectedIds.size > 0 && (
-          <div className="flex gap-2 mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl animate-fade-in">
+          <div className="flex flex-wrap gap-2 mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl animate-fade-in">
             <span className="text-sm font-medium flex-1">{selectedIds.size} selected</span>
-            <button onClick={handleBulkSold} className="px-3 py-1 text-xs bg-red-500 text-white rounded-full font-medium">Mark Sold</button>
+            <button onClick={handleBulkSold} disabled={bulkDeleting} className="px-3 py-1 text-xs bg-orange-500 text-white rounded-full font-medium disabled:opacity-50">Mark Sold</button>
+            <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1 text-xs bg-red-600 text-white rounded-full font-medium disabled:opacity-50">
+              {bulkDeleting ? "Deleting..." : t("deleteSelected" as TranslationKey)}
+            </button>
             <button onClick={() => { setShowSharePreview(true); }} className="px-3 py-1 text-xs bg-green-500 text-white rounded-full font-medium">Share</button>
             <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1 text-xs border border-gray-300 rounded-full font-medium">Clear</button>
           </div>
@@ -603,11 +661,11 @@ function AdminProductsPage() {
 
                 {/* Image Upload */}
                 <div>
-                  <p className="text-sm font-medium mb-2">Photos</p>
+                  <p className="text-sm font-medium mb-1">Photos ({form.images.length}/{VALIDATION_CONFIG.product.maxImages})</p>
                   {formErrors.images && <p className="text-xs text-red-500 mb-2">{formErrors.images}</p>}
                   <div className="flex flex-wrap gap-2 mb-2">
                     {form.images.map((url, i) => (
-                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden">
+                      <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden group">
                         <img src={url} alt="" className="w-full h-full object-cover" />
                         <button
                           onClick={() => removeImage(i)}
@@ -615,27 +673,64 @@ function AdminProductsPage() {
                         >
                           ×
                         </button>
+                        {i === 0 && (
+                          <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] text-center py-0.5">
+                            Primary
+                          </span>
+                        )}
                       </div>
                     ))}
                   </div>
-                  <label className="flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-purple-400 transition-colors">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-sm text-gray-500">
-                      {uploading ? "Uploading..." : "Add Photos"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      capture="environment"
-                      onChange={handleUpload}
-                      className="hidden"
-                      disabled={uploading}
-                    />
-                  </label>
+                  {uploadQueue.length > 0 && (
+                    <div className="mb-2 space-y-1">
+                      {uploadQueue.map((q, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs">
+                          {q.status === "uploading" && <span className="w-3 h-3 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />}
+                          {q.status === "done" && <span className="text-green-500">&#10003;</span>}
+                          {q.status === "error" && <span className="text-red-500">&#10007;</span>}
+                          {q.status === "pending" && <span className="w-3 h-3 rounded-full bg-gray-300" />}
+                          <span className={`truncate ${q.status === "error" ? "text-red-500" : "text-gray-500"}`}>{q.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {form.images.length < VALIDATION_CONFIG.product.maxImages ? (
+                    <div className="flex gap-2">
+                      <label className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-purple-400 transition-colors">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span className="text-xs text-gray-500">
+                          {uploading ? "Uploading..." : t("chooseFromGallery" as TranslationKey)}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          multiple
+                          onChange={handleUpload}
+                          className="hidden"
+                          disabled={uploading}
+                        />
+                      </label>
+                      <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-purple-400 transition-colors">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-xs text-gray-500">{t("takePhoto" as TranslationKey)}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleUpload}
+                          className="hidden"
+                          disabled={uploading}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-600 text-center py-2">{t("maxImagesReached" as TranslationKey)}</p>
+                  )}
                 </div>
               </div>
 
@@ -660,6 +755,21 @@ function AdminProductsPage() {
           <p className="text-sm text-gray-400 text-center py-8">Loading...</p>
         ) : (
           <div className="space-y-2">
+            {filtered.length > 0 && (
+              <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onChange={handleSelectAll}
+                  className="rounded"
+                />
+                <span className="text-xs text-gray-500 font-medium">
+                  {selectedIds.size === filtered.length && filtered.length > 0
+                    ? t("deselectAll" as TranslationKey)
+                    : t("selectAll" as TranslationKey)} ({filtered.length})
+                </span>
+              </div>
+            )}
             {filtered.map((p) => (
               <div
                 key={p.id}
