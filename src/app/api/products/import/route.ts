@@ -85,7 +85,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         description: parsed.description || "",
         category_id: categoryId,
         stock_count: parsed.stock_count ?? null,
-        colors: parsed.colors ? parsed.colors.split("|").map((c) => c.trim()).filter(Boolean) : [],
+        colors: parsed.colors ? parsed.colors.split("|").map((c: string) => c.trim()).filter(Boolean) : [],
         is_featured: parsed.is_featured,
         is_available: true,
       });

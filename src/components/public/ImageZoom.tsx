@@ -17,7 +17,7 @@ export default function ImageZoom({ children, active = true }: ImageZoomProps) {
 
   const { maxScale, minScale, doubleTapDelay } = UI_CONFIG.imageZoom;
 
-  const getDistance = (t1: Touch, t2: Touch) => {
+  const getDistance = (t1: { clientX: number; clientY: number }, t2: { clientX: number; clientY: number }) => {
     const dx = t1.clientX - t2.clientX;
     const dy = t1.clientY - t2.clientY;
     return Math.sqrt(dx * dx + dy * dy);
