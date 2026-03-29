@@ -35,7 +35,8 @@ export default function ProductDetailPage() {
     fetch(`/api/products?code=${code}`)
       .then((r) => r.json())
       .then((data) => {
-        const prod = data[0];
+        const arr = Array.isArray(data) ? data : [];
+        const prod = arr[0];
         setProduct(prod || null);
         if (prod?.colors?.length) setSelectedColor(prod.colors[0]);
         setLoading(false);
@@ -47,9 +48,10 @@ export default function ProductDetailPage() {
         if (prod?.category_id) {
           fetch(`/api/products?category=${prod.category_id}&available=true`)
             .then((r) => r.json())
-            .then((sims) =>
-              setSimilar(sims.filter((s: Product) => s.id !== prod.id).slice(0, APP_CONFIG.product.similarProductsLimit))
-            );
+            .then((sims) => {
+              const simsArr = Array.isArray(sims) ? sims : [];
+              setSimilar(simsArr.filter((s: Product) => s.id !== prod.id).slice(0, APP_CONFIG.product.similarProductsLimit));
+            });
         }
       })
       .catch(() => setLoading(false));

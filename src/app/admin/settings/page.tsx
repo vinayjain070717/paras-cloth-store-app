@@ -18,7 +18,9 @@ export default function AdminSettingsPage() {
   const [showEmail, setShowEmail] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then(setSettings);
+    fetch("/api/settings").then((r) => r.json()).then((data) => {
+      if (data && !data.error) setSettings(data);
+    });
   }, []);
 
   useEffect(() => {

@@ -34,17 +34,19 @@ export default function AdminDashboard() {
       fetch(`/api/activity-log?limit=${DB_CONFIG.queryLimits.recentProductsDashboard * 2}`).then((r) => r.json()).catch(() => []),
       fetch("/api/notify").then((r) => r.json()).catch(() => []),
     ]).then(([products, categories, visitors, activityData, notifyData]) => {
-      const available = products.filter((p: Product) => p.is_available).length;
+      const prods = Array.isArray(products) ? products : [];
+      const cats = Array.isArray(categories) ? categories : [];
+      const available = prods.filter((p: Product) => p.is_available).length;
       setStats({
-        total: products.length,
+        total: prods.length,
         available,
-        soldOut: products.length - available,
-        categories: categories.length,
-        visitors: visitors.total || 0,
-        todayVisitors: visitors.today || 0,
+        soldOut: prods.length - available,
+        categories: cats.length,
+        visitors: visitors?.total || 0,
+        todayVisitors: visitors?.today || 0,
         notifyRequests: Array.isArray(notifyData) ? notifyData.length : 0,
       });
-      setRecentProducts(products.slice(0, DB_CONFIG.queryLimits.recentProductsDashboard));
+      setRecentProducts(prods.slice(0, DB_CONFIG.queryLimits.recentProductsDashboard));
       setActivities(Array.isArray(activityData) ? activityData : []);
       setNotifyRequests(Array.isArray(notifyData) ? notifyData : []);
     });

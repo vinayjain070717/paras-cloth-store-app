@@ -16,9 +16,11 @@ export default function AdminThemePage() {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
-        setPrimaryColor(data.primary_color || "#7c3aed");
-        setAccentColor(data.accent_color || "#f59e0b");
-        setDarkMode(data.dark_mode || false);
+        if (data && !data.error) {
+          setPrimaryColor(data.primary_color || "#7c3aed");
+          setAccentColor(data.accent_color || "#f59e0b");
+          setDarkMode(data.dark_mode || false);
+        }
       });
   }, []);
 

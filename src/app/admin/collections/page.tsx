@@ -68,8 +68,8 @@ export default function AdminCollectionsPage() {
       fetch("/api/products").then((r) => r.json()),
       fetch(`/api/collections?id=${collectionId}&withProducts=true`).then((r) => r.json()),
     ]);
-    setAllProducts(prods);
-    setCollectionProducts(colData.products || []);
+    setAllProducts(Array.isArray(prods) ? prods : []);
+    setCollectionProducts(Array.isArray(colData?.products) ? colData.products : []);
   };
 
   const toggleProduct = async (productId: string, isIn: boolean) => {

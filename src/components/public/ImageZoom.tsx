@@ -93,7 +93,7 @@ export default function ImageZoom({ children, active = true }: ImageZoomProps) {
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden touch-manipulation"
+      className="overflow-hidden touch-manipulation w-full h-full relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -102,6 +102,7 @@ export default function ImageZoom({ children, active = true }: ImageZoomProps) {
       onMouseMove={handleMouseMove}
     >
       <div
+        className="w-full h-full relative"
         style={{
           transform: `scale(${scale})`,
           transformOrigin: `${origin.x}% ${origin.y}%`,
